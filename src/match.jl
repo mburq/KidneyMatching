@@ -31,8 +31,7 @@ function match(graph::DiGraph,
             two_three_cycles_constraint(m, n, graph, x)
             status = solve(m)
         else
-            error("Techno $(techno), with $(max_cycle_length) cycles and \
-                  $(chain_max_length) is not yet implemented")
+            error("Techno $(techno), with $(max_cycle_length) cycles and $(chain_max_length) is not yet implemented")
         end
     elseif techno == "chains"
         if solver == "gurobi"
