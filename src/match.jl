@@ -2,14 +2,14 @@
 ## Find maximum matching in the graph
 ###################################################
 
-function match(graph::DiGraph,
+function kidney_match(graph::DiGraph,
                weights::Array{Float64,2};
                verbose::Int64 = 0,
                techno::String = "cycles", # can be "cycles", "chains", "cycles_chains"
                max_cycle_length::Int64 = 2,
                chain_max_length::Int64 = 0,
                solver::String = "gurobi",
-               ndds::Array{Int64, 1} = Array{Int64}(0))
+               ndds::Array{Int64, 1} = zeros(Int64, 0))
 
   time_model_init = time()
   m = init_model(solver)
@@ -31,7 +31,8 @@ function match(graph::DiGraph,
             two_three_cycles_constraint(m, n, graph, x)
             status = solve(m)
         else
-            error("Techno $(techno), with $(max_cycle_length) cycles and $(chain_max_length) is not yet implemented")
+            error("Techno $(techno), with $(max_cycle_length) cycles and
+                  $(chain_max_length) is not yet implemented")
         end
     elseif techno == "chains"
         if solver == "gurobi"
@@ -57,10 +58,9 @@ function match(graph::DiGraph,
             end
         end# chain_constraint(m, n, graph, x, in, out, ndds)
     else
-        error("Techno $(techno), with $(max_cycle_length) cycles and \
-            $(chain_max_length) is not yet implemented")
+        error("Techno $(techno), with $(max_cycle_length) cycles and
+              $(chain_max_length) is not yet implemented")
     end
-
 
   # push!(l.time_jump, time() - time_model_init)
   # println(m)
@@ -123,7 +123,7 @@ function two_cycles_constraint(m::JuMP.Model, n::Int64, graph::DiGraph,
 end
 
 function check_cycle_length(x_val, n, max_cycle_length, graph)
-    flag = zeros(Array{Int64}(n))
+    flag = zeros(Int64, n)
     for i in 1:n
         if flag[i] == 0
             current_vertex = i
