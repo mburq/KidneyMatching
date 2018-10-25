@@ -2,6 +2,8 @@
 ## Find maximum matching in the graph
 ###################################################
 
+using JuMP, LightGraphs, Gurobi, GLPK, GLPKMathProgInterface
+
 function match(graph::DiGraph,
                weights::Array{Float64,2};
                verbose::Int64 = 0,
@@ -122,14 +124,6 @@ function two_cycles_constraint(m::JuMP.Model, n::Int64, graph::DiGraph,
   #             c6[i=1:n, j=setdiff(inneighbors(graph, i), outneighbors(graph, i))],
   #             x[Edge((j,i))] == 0)
 end
-# function cycles_4_constraint(m::JuMP.Model, n::Int64, graph::DiGraph,
-#           x#::JuMP.JuMPArray{JuMP.Variable,1,Tuple{Array{LightGraphs.SimpleGraphs.SimpleEdge{Int64},1}}}
-#           )
-#       @constraint(m, c4[i=1:n, j=outneighbors(graph, i), k=outneighbors(graph, j), l=outneighbors(graph,k)],
-#           (i in outneighbors(graph, l) ? x[Edge((k,i))] : Int(k == i)) >= x[Edge((i,j))] + x[Edge((j,k))] - 1)
-# end
-
-
 
 function check_cycle_length(x_val, n, max_cycle_length, graph)
     flag = zeros(Array{Int64}(n))
