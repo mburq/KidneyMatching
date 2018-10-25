@@ -2,8 +2,6 @@
 ## Find maximum matching in the graph
 ###################################################
 
-using JuMP, LightGraphs, Gurobi, GLPK, GLPKMathProgInterface
-
 function match(graph::DiGraph,
                weights::Array{Float64,2};
                verbose::Int64 = 0,
