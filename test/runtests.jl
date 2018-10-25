@@ -1,4 +1,4 @@
-using JuMP, LightGraphs, Gurobi, GLPK, GLPKMathProgInterface
+using JuMP, LightGraphs, GLPK, GLPKMathProgInterface
 using Test, KidneyMatching
 
 g1 = DiGraph(4)

@@ -1,6 +1,6 @@
 module KidneyMatching
 
-using JuMP, LightGraphs, Gurobi, GLPK, GLPKMathProgInterface
+using JuMP, LightGraphs, GLPK, GLPKMathProgInterface
 
 export kidney_match
 include("match.jl")
