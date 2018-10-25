@@ -74,7 +74,7 @@ end
 
 function init_model(solver::String)
   if solver == "gurobi"
-    m = Model(solver=GurobiSolver(OutputFlag = 0, PreCrush=1))
+    error("No gurobi at this time") # m = Model(solver=GurobiSolver(OutputFlag = 0, PreCrush=1))
   elseif solver == "mosek"
     m = Model(solver=MosekSolver(LOG = 0))
   elseif solver == "GLPK"
