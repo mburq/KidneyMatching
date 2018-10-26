@@ -9,3 +9,4 @@ email: false
 
 after_success:
 - julia -e 'cd(Pkg.dir("KidneyMatching")); Pkg.add("Coverage"); using Coverage; Codecov.submit(Codecov.process_folder())'
+
