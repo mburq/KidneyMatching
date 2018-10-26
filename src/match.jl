@@ -1,17 +1,22 @@
-###################################################
-## Find maximum matching in the graph
-###################################################
+"""
+kidney_match
+Returns a maximum-weight matching in the form of three elements:
+- An array of matched vertices
+- An array of matched edges
+- The corresponding match value.
+"""
+function kidney_match(weights::Array{Float64,2};
+                      graph::DiGraph=DiGraph(),
+                      verbose::Int64 = 0,
+                      max_cycle_length::Int64 = 2,
+                      chain_max_length::Int64 = 0,
+                      solver::String = "GLPK",
+                      method::String = "MIP_callbacks", # Can be "MIP_callbacks" or "hungarian"
+                      ndds::Array{Int64, 1} = zeros(Int64, 0))
 
-function kidney_match(graph::DiGraph,
-               weights::Array{Float64,2};
-               verbose::Int64 = 0,
-               techno::String = "cycles", # can be "cycles", "chains", "cycles_chains"
-               max_cycle_length::Int64 = 2,
-               chain_max_length::Int64 = 0,
-               solver::String = "gurobi",
-               ndds::Array{Int64, 1} = zeros(Int64, 0))
-
-  time_model_init = time()
+  if nv(graph) == 0
+      graph = generate_graph(weights)
+  end
   m = init_model(solver)
   n = nv(graph)
   @variable(m, 1 >= x[collect(edges(graph))] >= 0, Int)
@@ -23,53 +28,42 @@ function kidney_match(graph::DiGraph,
   @constraint(m, c2[k=1:n], sum(x[Edge((k,j))] for j=outneighbors(graph, k)) == out[k])
   @constraint(m, c3[k=setdiff(1:n, ndds)], out[k] <= in[k])
   @constraint(m, c4[k=ndds], in[k] == 0)
-    if techno == "cycles"
-        if max_cycle_length == 2
-            two_cycles_constraint(m, n, graph, x)
-            status = solve(m)
-        elseif max_cycle_length == 3
-            two_three_cycles_constraint(m, n, graph, x)
-            status = solve(m)
-        else
-            error("Techno $(techno), with $(max_cycle_length) cycles and
-                  $(chain_max_length) is not yet implemented")
-        end
-    elseif techno == "chains"
-        if solver == "gurobi"
-            function lazy_cycle_length(cb)
-                x_val = getvalue(x)
-                found, length, cycle = check_cycle_length(x_val, n, max_cycle_length, graph)
-                # println("lazy constraint, cycle= $(cycle), found=$(found), cycle_length=$(length)")
-                if found
-                    @lazyconstraint(cb, sum(x[e] for e in cycle) <= length - 1)
-                end
-            end
-            addlazycallback(m, lazy_cycle_length)
-            status = solve(m)
-        elseif solver == "GLPK"
-            status = solve(m)
-            x_val = getvalue(x)
-            found, length, cycle = check_cycle_length(x_val, n, max_cycle_length, graph)
-            while found
-                @constraint(m, sum(x[e] for e in cycle) <= length - 1)
-                status = solve(m)
-                x_val = getvalue(x)
-                found, length, cycle = check_cycle_length(x_val, n, max_cycle_length, graph)
-            end
-        end# chain_constraint(m, n, graph, x, in, out, ndds)
-    else
-        error("Techno $(techno), with $(max_cycle_length) cycles and
-              $(chain_max_length) is not yet implemented")
-    end
-
-  # push!(l.time_jump, time() - time_model_init)
-  # println(m)
-
+  if method == "MIP_callbacks"
+      status = solve(m)
+      x_val = getvalue(x)
+      found, length, cycle = check_cycle_length(x_val, n, max_cycle_length, graph)
+      while found
+          @constraint(m, sum(x[e] for e in cycle) <= length - 1)
+          status = solve(m)
+          x_val = getvalue(x)
+          found, length, cycle = check_cycle_length(x_val, n, max_cycle_length, graph)
+      end
+  elseif method == "LP_2_cycles"
+      two_cycles_constraint(m, n, graph, x)
+      status = solve(m)
+  elseif method == "LP_3_cycles"
+      two_three_cycles_constraint(m, n, graph, x)
+      status = solve(m)
+  end
   match_edges = getvalue(x)
   match_vertices = getvalue(in)
   value = getobjectivevalue(m)
-  # push!(l.time_lp, getsolvetime(m))
+
   return  (match_vertices, match_edges, value)
+end
+
+function generate_graph(weights::Array{Float64,2})
+    @assert size(weights)[1] == size(weights)[2]
+    n = size(weights)[1]
+    graph = DiGraph(n)
+    for i in 1:n
+        for j in 1:n
+            if weights[i,j] > 0
+                add_edge!(graph, i,j)
+            end
+        end
+    end
+    return graph
 end
 
 function init_model(solver::String)
@@ -122,6 +116,10 @@ function two_cycles_constraint(m::JuMP.Model, n::Int64, graph::DiGraph,
   #             x[Edge((j,i))] == 0)
 end
 
+"""
+Checks that a matching does not contain cycles of length greater than `max_cycle_length`.
+Returns such a cycle if one is found as an array of edges.
+"""
 function check_cycle_length(x_val, n, max_cycle_length, graph)
     flag = zeros(Int64, n)
     for i in 1:n
