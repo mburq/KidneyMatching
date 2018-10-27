@@ -121,9 +121,9 @@ version = "1.2.0"
 
 [[LinQuadOptInterface]]
 deps = ["Compat", "MathOptInterface", "Pkg"]
-git-tree-sha1 = "777c9d1c64b1fc5bd20b2b7b13b746c2c757df0d"
+git-tree-sha1 = "c246e73894d2063ab0697be54ecbb122e604df19"
 uuid = "f8899e07-120b-5979-ab1d-7b97bb9e1a48"
-version = "0.4.0"
+version = "0.4.1"
 
 [[LinearAlgebra]]
 deps = ["Libdl"]
@@ -144,9 +144,9 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[MathOptInterface]]
 deps = ["Compat", "Unicode"]
-git-tree-sha1 = "ba12e7ce825c1458c03f88aae84fa630d882d303"
+git-tree-sha1 = "d7427366a571b41214fa51e2e33b7a64c8950e5f"
 uuid = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
-version = "0.6.1"
+version = "0.6.2"
 
 [[MathProgBase]]
 deps = ["Compat"]

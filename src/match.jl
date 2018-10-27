@@ -1,49 +1,53 @@
 """
-kidney_match
+basic_MIP
+Returns a JuMP model with the basic matching MIP. On its own, solves the problem with
+unbounded chains and cycles.
+"""
+function basic_MIP(weights::Array{Float64,2}, graph::DiGraph, ndds::Array{Int64, 1})
+    m = Model(solver=GLPKSolverMIP())
+    n = nv(graph)
+    @variable(m, 1 >= x[collect(edges(graph))] >= 0, Int)
+    @variable(m, 1 >= in[1:n] >= 0, Int)
+    @variable(m, 1 >= out[1:n] >= 0, Int)
+    @objective(m, Max, sum(x[Edge((i, j))] * weights[i, j] for i in 1:n, j in outneighbors(graph, i)))
+
+    @constraint(m, c1[k=1:n], sum(x[Edge((i,k))] for i=inneighbors(graph, k)) == in[k])
+    @constraint(m, c2[k=1:n], sum(x[Edge((k,j))] for j=outneighbors(graph, k)) == out[k])
+    @constraint(m, c3[k=setdiff(1:n, ndds)], out[k] <= in[k])
+    @constraint(m, c4[k=ndds], in[k] == 0)
+    return (m, x, in)
+end
+
+"""
+chain_cycle_match
 Returns a maximum-weight matching in the form of three elements:
 - An array of matched vertices
 - An array of matched edges
 - The corresponding match value.
+
+Iteratively re-solves because callbacks are not available in GLPK.jl.
 """
-function kidney_match(weights::Array{Float64,2};
-                      graph::DiGraph=DiGraph(),
-                      verbose::Int64 = 0,
-                      max_cycle_length::Int64 = 2,
-                      chain_max_length::Int64 = 0,
-                      solver::String = "GLPK",
-                      method::String = "MIP_callbacks", # Can be "MIP_callbacks" or "hungarian"
-                      ndds::Array{Int64, 1} = zeros(Int64, 0))
+function chain_cycle_match(weights::Array{Float64,2};
+                           graph::DiGraph=DiGraph(),
+                           verbose::Int64 = 0,
+                           max_cycle_length::Int64 = 2,
+                           max_chain_length::Float64 = Inf64,
+                           solver::String = "GLPK",
+                           ndds::Array{Int64, 1} = zeros(Int64, 0))
 
   if nv(graph) == 0
       graph = generate_graph(weights)
   end
-  m = init_model(solver)
+  m, x, in = basic_MIP(weights, graph, ndds)
   n = nv(graph)
-  @variable(m, 1 >= x[collect(edges(graph))] >= 0, Int)
-  @variable(m, 1 >= in[1:n] >= 0, Int)
-  @variable(m, 1 >= out[1:n] >= 0, Int)
-  @objective(m, Max, sum(x[Edge((i, j))] * weights[i, j] for i in 1:n, j in outneighbors(graph, i)))
-
-  @constraint(m, c1[k=1:n], sum(x[Edge((i,k))] for i=inneighbors(graph, k)) == in[k])
-  @constraint(m, c2[k=1:n], sum(x[Edge((k,j))] for j=outneighbors(graph, k)) == out[k])
-  @constraint(m, c3[k=setdiff(1:n, ndds)], out[k] <= in[k])
-  @constraint(m, c4[k=ndds], in[k] == 0)
-  if method == "MIP_callbacks"
+  status = solve(m)
+  x_val = getvalue(x)
+  found, length, cycle = check_cycle_length(x_val, n, max_cycle_length, graph)
+  while found
+      @constraint(m, sum(x[e] for e in cycle) <= length - 1)
       status = solve(m)
       x_val = getvalue(x)
       found, length, cycle = check_cycle_length(x_val, n, max_cycle_length, graph)
-      while found
-          @constraint(m, sum(x[e] for e in cycle) <= length - 1)
-          status = solve(m)
-          x_val = getvalue(x)
-          found, length, cycle = check_cycle_length(x_val, n, max_cycle_length, graph)
-      end
-  elseif method == "LP_2_cycles"
-      two_cycles_constraint(m, n, graph, x)
-      status = solve(m)
-  elseif method == "LP_3_cycles"
-      two_three_cycles_constraint(m, n, graph, x)
-      status = solve(m)
   end
   match_edges = getvalue(x)
   match_vertices = getvalue(in)
@@ -52,75 +56,11 @@ function kidney_match(weights::Array{Float64,2};
   return  (match_vertices, match_edges, value)
 end
 
-function generate_graph(weights::Array{Float64,2})
-    @assert size(weights)[1] == size(weights)[2]
-    n = size(weights)[1]
-    graph = DiGraph(n)
-    for i in 1:n
-        for j in 1:n
-            if weights[i,j] > 0
-                add_edge!(graph, i,j)
-            end
-        end
-    end
-    return graph
-end
-
-function init_model(solver::String)
-  if solver == "gurobi"
-    error("No gurobi at this time") # m = Model(solver=GurobiSolver(OutputFlag = 0, PreCrush=1))
-  elseif solver == "mosek"
-    m = Model(solver=MosekSolver(LOG = 0))
-  elseif solver == "GLPK"
-    m = Model(solver=GLPKSolverMIP())
-  else
-    error("Solver $(solver) is not supported")
-  end
-  return m
-end
-
-function two_three_cycles_constraint(m::JuMP.Model, n::Int64, graph::DiGraph,
-          x#::JuMP.JuMPArray{JuMP.Variable,1,Tuple{Array{LightGraphs.SimpleGraphs.SimpleEdge{Int64},1}}}
-          ) # TODO: Breaking change in JuMP syntax, will fix later
-
-  # If there is a path of length 2, it has to be closed as a 3-cycle
-  # 2-cycles are not impacted because i is not in ingoing[i]
-
-  @constraint(m,
-              c5[i=1:n,
-                 j=outneighbors(graph, i),
-                 k=intersect(outneighbors(graph, j), inneighbors(graph, i))],
-              x[Edge((k,i))] >= x[Edge((i,j))] + x[Edge((j,k))] - 1
-             )
- @constraint(m,
-             c6[i=1:n, j=outneighbors(graph, i), k=setdiff(outneighbors(graph, j), inneighbors(graph, i))],
-             Int(k == i) >= x[Edge((i,j))] + x[Edge((j,k))] - 1
-            )
-  # if k == i, then no constraint.
-end
-
-function two_cycles_constraint(m::JuMP.Model, n::Int64, graph::DiGraph,
-  x#::JuMP.JuMPArray{JuMP.Variable,1,Tuple{Array{LightGraphs.SimpleGraphs.SimpleEdge{Int64},1}}}
-  )
-  # For 2-cycles, edges.list only contains pairs for which both ways exist
-  # this enables faster model creation.
-  @constraint(m,
-              c5[i=1:n, j=intersect(outneighbors(graph, i), inneighbors(graph, i))],
-              x[Edge((i,j))] == x[Edge((j,i))])
-  @constraint(m,
-              c6[i=1:n, j=setdiff(outneighbors(graph, i), inneighbors(graph, i))],
-              x[Edge((i,j))] == 0)
-  # TODO: Check that the following constraint is redundant
-  # @constraint(m,
-  #             c6[i=1:n, j=setdiff(inneighbors(graph, i), outneighbors(graph, i))],
-  #             x[Edge((j,i))] == 0)
-end
-
 """
 Checks that a matching does not contain cycles of length greater than `max_cycle_length`.
 Returns such a cycle if one is found as an array of edges.
 """
-function check_cycle_length(x_val, n, max_cycle_length, graph)
+function check_cycle_length(x_val, n::Int64, max_cycle_length::Int64, graph::DiGraph)
     flag = zeros(Int64, n)
     for i in 1:n
         if flag[i] == 0
@@ -149,7 +89,7 @@ function check_cycle_length(x_val, n, max_cycle_length, graph)
     return (false, 0, [])
 end
 
-function find_recipient(i, x_val, graph)
+function find_recipient(i::Int64, x_val, graph::DiGraph)
     recipient = 0
     for j in outneighbors(graph, i)
         if x_val[Edge((i,j))] == 1
@@ -158,4 +98,22 @@ function find_recipient(i, x_val, graph)
         end
     end
     return recipient
+end
+
+"""
+generate_graph
+Creates a LightGraph directed graph from an adjacency edge-weight matrix.
+"""
+function generate_graph(weights::Array{Float64,2})
+    @assert size(weights)[1] == size(weights)[2]
+    n = size(weights)[1]
+    graph = DiGraph(n)
+    for i in 1:n
+        for j in 1:n
+            if weights[i,j] > 0
+                add_edge!(graph, i,j)
+            end
+        end
+    end
+    return graph
 end
