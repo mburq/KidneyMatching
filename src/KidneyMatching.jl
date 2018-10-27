@@ -2,7 +2,8 @@ module KidneyMatching
 
 using JuMP, LightGraphs, GLPK, GLPKMathProgInterface
 
-export kidney_match
+export chain_cycle_match, cycle_match
 include("match.jl")
+include("fallback_match.jl")
 
 end # module
