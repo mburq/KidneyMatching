@@ -52,7 +52,6 @@ function chain_cycle_match(weights::Array{Float64,2};
   match_edges = getvalue(x)
   match_vertices = getvalue(in)
   value = getobjectivevalue(m)
-
   return  (match_vertices, match_edges, value)
 end
 
