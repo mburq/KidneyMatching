@@ -12,7 +12,7 @@ To dos:
 # read in packages
 using CSV, LightGraphs, DataFrames
 
-# include("match.jl")
+include("match.jl")
 
 # read in list of edges
 edge_list = DataFrame(CSV.read("fake_edge_list.csv",header=false))
